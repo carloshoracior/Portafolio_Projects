@@ -1,0 +1,174 @@
+-- CREATE THE DATABASE
+-- Database: Toronto_Robberies
+
+-- DROP DATABASE IF EXISTS "Toronto_Robberies";
+
+CREATE DATABASE "Toronto_Robberies"
+    WITH
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'C'
+    LC_CTYPE = 'C'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1
+    IS_TEMPLATE = False;
+
+-- CREATING THE TABLE IN PGADMIN4
+
+CREATE TABLE public."robberies"
+(
+    "objectid2" integer NOT NULL,
+    "x" double precision,
+    "y" double precision,
+    "objectid" integer,
+    event_unique_id character varying(20),
+    "division" character varying(20),
+    occurrencedate timestamp with time zone,
+    reporteddate timestamp with time zone,
+    location_type character varying,
+    premises_type character varying,
+    ucr_code integer,
+    ucr_ext integer,
+    offence character varying,
+    reportedyear integer,
+    reportedmonth character varying,
+    reportedday integer,
+    reporteddayofyear integer,
+    reporteddayofweek character varying ,
+    reportedhour integer,
+    occurrenceyear integer,
+    occurrencemonth character varying ,
+    occurrenceday integer,
+    occurrencedayofyear integer,
+    occurrencedayofweek character varying,
+    occurrencehour integer,
+    mci_category character varying,
+    "hood_iD" integer,
+    "neighbourhood" character varying,
+    "longitude" double precision,
+    "latitude" double precision,
+    PRIMARY KEY ("objectid2")
+);
+
+ALTER TABLE IF EXISTS public."robberies"
+    OWNER to postgres;
+
+-- IMPORTED THE CVS FILE 
+
+--Making sure there are no replicas 
+
+SELECT objectid2, objectid, event_unique_id, COUNT (*)
+FROM robberies
+GROUP BY objectid2, objectid, event_unique_id
+HAVING COUNT (*)>1;
+
+-- How many robberies had happened (Table_1)
+SELECT COUNT (*) AS total_robberies
+FROM robberies;
+
+-- Finding the number of robberies per location type (Table_2)
+
+SELECT location_type, COUNT (*) AS incidents
+FROM robberies
+GROUP BY location_type
+ORDER BY incidents DESC;
+
+--Finding the year with more incidents (Table_3)
+
+SELECT occurrenceyear, COUNT (*) as incidents
+FROM robberies
+GROUP BY occurrenceyear
+ORDER BY occurrenceyear DESC;
+
+-- As seen in the table, there are 2 incidents that dont have reported dates. To look into them:
+
+SELECT event_unique_id, occurrencedate, reporteddate, reportedyear, occurrenceyear
+FROM robberies
+WHERE occurrenceyear IS NULL;
+
+-- The table shows that the reason why the two inccidents dont report a date is because the happened in the years 1980 and 1996 but they were reported within the time frame of the database.
+-- To exclude the incidents occured on 1980 and 1996 :
+
+SELECT occurrenceyear, COUNT (*) as incidents
+FROM robberies
+GROUP BY occurrenceyear
+ORDER BY occurrenceyear DESC
+OFFSET 1;
+
+-- Incidents per month (Table_4)
+
+SELECT occurrencemonth, COUNT(*) AS indicents
+FROM robberies
+GROUP BY occurrencemonth
+ORDER BY CASE occurrencemonth
+    WHEN 'January' THEN 1
+    WHEN 'February' THEN 2
+    WHEN 'March' THEN 3
+    WHEN 'April' THEN 4
+    WHEN 'May' THEN 5
+    WHEN 'June' THEN 6
+    WHEN 'July' THEN 7
+    WHEN 'August' THEN 8
+    WHEN 'September' THEN 9
+    WHEN 'October' THEN 10
+    WHEN 'November' THEN 11
+    WHEN 'December' THEN 12
+    ELSE 99 -- Handle any other cases not covered
+END
+LIMIT 12;
+
+-- Time of the indicents (Table_5)
+
+SELECT occurrenceyear,occurrencemonth, occurrenceday, occurrencehour, occurrencedayofweek
+FROM robberies;
+
+-- Finding number of incidents by type of offence (ucr_ext) (Table_6)
+
+SELECT ucr_ext, offence, COUNT (*) as incidents
+FROM robberies
+GROUP BY  ucr_ext, offence
+ORDER BY incidents DESC;
+
+-- Incidents by neighbourhoods (Table_7)
+
+SELECT hood_id, neighbourhood, COUNT(*) as incidents, 'ontario' as new_column, 'canada' as country
+FROM robberies
+GROUP BY hood_id, neighbourhood
+ORDER BY incidents DESC;
+
+-- longitude and latitude reported of incidents (Table_8)
+
+SELECT  longitude, latitude, COUNT (*) AS incidents
+FROM robberies
+GROUP BY longitude, latitude
+ORDER BY incidents DESC
+OFFSET 1;
+
+-- How many incidents are reported in the same year? (Table_9)
+
+SELECT years_to_report, occurrence_count
+FROM (
+  SELECT (reportedyear - occurrenceyear) AS years_to_report, COUNT(*) AS occurrence_count,
+         ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS row_num
+  FROM robberies
+  GROUP BY years_to_report
+) subquery
+WHERE row_num <> 5
+ORDER BY occurrence_count DESC;
+
+-- Hours it took to report each robbery (Table_10)
+
+SELECT objectid2, combined_datetime_occurrence, 
+		combined_datetime_reported,  
+		EXTRACT(DAY FROM (combined_datetime_reported - combined_datetime_occurrence)) * 24 
+       + EXTRACT(HOUR FROM (combined_datetime_reported - combined_datetime_occurrence)) AS hours_to_report
+FROM 
+    (SELECT objectid2,
+        TO_TIMESTAMP(CONCAT(reportedyear, '-', reportedmonth, '-', reportedday, ' ', reportedhour), 'YYYY-Month-DD HH24') AS combined_datetime_reported,
+        TO_TIMESTAMP(CONCAT(occurrenceyear, '-', occurrencemonth, '-', occurrenceday, ' ', occurrencehour), 'YYYY-Month-DD HH24') AS combined_datetime_occurrence
+    FROM 
+        robberies
+    WHERE 
+        occurrenceyear IS NOT NULL  ) AS subquery
+		ORDER BY hours_to_report DESC;
+
