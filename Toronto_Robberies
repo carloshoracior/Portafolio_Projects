@@ -171,4 +171,35 @@ FROM
     WHERE 
         occurrenceyear IS NOT NULL  ) AS subquery
 		ORDER BY hours_to_report DESC;
+		
+-- To graphic (Table_11)
+
+SELECT 
+    CASE 
+        WHEN hours_to_report BETWEEN 0 AND 24 THEN '1 day'
+        WHEN hours_to_report BETWEEN 25 AND 48 THEN '2 days'
+        WHEN hours_to_report BETWEEN 49 AND 72 THEN '3 days'
+        WHEN hours_to_report BETWEEN 73 AND 168 THEN '1 week'
+ 
+     ELSE 'Other'
+    END AS time_range,
+    COUNT(*) AS count
+FROM (
+    SELECT 
+        objectid2,
+        EXTRACT(DAY FROM (combined_datetime_reported - combined_datetime_occurrence)) * 24 
+            + EXTRACT(HOUR FROM (combined_datetime_reported - combined_datetime_occurrence)) AS hours_to_report
+    FROM (
+        SELECT 
+            objectid2,
+            TO_TIMESTAMP(CONCAT(reportedyear, '-', reportedmonth, '-', reportedday, ' ', reportedhour), 'YYYY-Month-DD HH24') AS combined_datetime_reported,
+            TO_TIMESTAMP(CONCAT(occurrenceyear, '-', occurrencemonth, '-', occurrenceday, ' ', occurrencehour), 'YYYY-Month-DD HH24') AS combined_datetime_occurrence
+        FROM 
+            robberies
+        WHERE 
+            occurrenceyear IS NOT NULL
+    ) AS subquery
+) AS outer_query
+GROUP BY time_range
+ORDER BY time_range;
 
